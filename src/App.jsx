@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { MapPin, Calendar, Compass, Hotel, Train, Car, Bus, Plane, Search, Star, Users, Globe, LogIn, UserPlus, ChevronRight, Home, Layers, Loader2, CreditCard, Crown, DollarSign } from "lucide-react";
-import GoTrue from "gotrue-js";
+import { GoTrueClient } from "@supabase/gotrue-js";
 
 /*************************************
  * Tour Planner AI — Netlify-ready (Realtime v1)
@@ -79,8 +79,11 @@ async function geocodeCity(city){
 /********** Main App **********/
 export default function App(){
   // Auth: Netlify Identity
-  const auth = useMemo(()=> new GoTrue({ APIUrl: `${window.location.origin}/.netlify/identity`, setCookie:true }), []);
-
+  
+const auth = new GoTrueClient({
+  url: `${window.location.origin}/.netlify/identity`,
+  fetch: fetch
+});
   const [mode, setMode] = useState("auth");
   const [user, setUser] = useState(null);
   const [geo, setGeo] = useState(null);
@@ -288,12 +291,26 @@ export default function App(){
                 <Card>
                   <SectionTitle icon={MapPin} title="Destination" subtitle={tourType==="national"?"Type your main city and press Enter":"Type your main international city and press Enter"} />
                   <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                    <Field label={tourType==="national"?"Main city (national)":"Main city (international)">
-                      <div className="relative">
-                        <Search className="pointer-events-none absolute left-3 top-2.5" size={16} />
-                        <Input placeholder="e.g., New York / Paris" className="pl-9" value={tourType==="national"?mainCity:intlPick} onChange={(e)=> tourType==="national"? setMainCity(e.target.value) : setIntlPick(e.target.value) } onKeyDown={async (e)=>{ if(e.key==='Enter'){ /* trigger geocode via effect */ } }}/>
-                      </div>
-                    </Field>
+                    <Field label={tourType === "national" ? "Main city (national)" : "Main city (international)"}>
+  			<div className="relative">
+    			<Search className="pointer-events-none absolute left-3 top-2.5" size={16} />
+    			<Input
+      			placeholder="e.g., New York / Paris"
+      				className="pl-9"
+      				value={tourType === "national" ? mainCity : intlPick}
+      				onChange={(e) =>
+        			tourType === "national"
+          			? setMainCity(e.target.value)
+          			: setIntlPick(e.target.value)
+      				}
+      				onKeyDown={(e) => {
+        			if (e.key === "Enter") {
+          			// Geocoding runs via useEffect when the city string changes
+        			}
+      			}}
+    			/>
+  			</div>
+			</Field>
                     <Field label="Multi main spot?">
                       <Select value={multiSpot?"yes":"no"} onChange={(v)=>setMultiSpot(v==="yes")} options={[{value:"no",label:"No"},{value:"yes",label:"Yes"}]} placeholder="Select"/>
                     </Field>
