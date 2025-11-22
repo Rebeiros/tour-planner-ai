@@ -41,6 +41,7 @@ Set these in **Netlify → Site Settings → Environment**:
 | `geo.js` | `/.netlify/functions/geo` | Detects user's country by IP |
 | `attractions.js` | `/.netlify/functions/attractions?lat=&lon=` | Returns nearby attractions |
 | `hotels.js` | `/.netlify/functions/hotels?city=` | Returns hotels (stub for now) |
+| `plan.js` | `/.netlify/functions/plan` | Creates a serverless itinerary draft with budgets |
 
 ---
 
