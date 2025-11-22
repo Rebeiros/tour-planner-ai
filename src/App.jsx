@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   MapPin, Calendar, Compass, Hotel, Train, Car, Bus, Plane, Search,
   Users, Globe, LogIn, UserPlus, ChevronRight, Home, Layers, Loader2,
-  CreditCard, Crown, DollarSign
+  CreditCard, Crown, DollarSign, Wand2, BarChart3, Clock3,
 } from "lucide-react";
 import { GoTrueClient } from "@supabase/gotrue-js";
 
@@ -166,6 +166,11 @@ export default function App() {
 
   const [showPro, setShowPro] = useState(false);
 
+  // Serverless itinerary draft
+  const [planLoading, setPlanLoading] = useState(false);
+  const [planError, setPlanError] = useState("");
+  const [planResult, setPlanResult] = useState(null);
+
   // Load existing Identity session (if any)
   useEffect(() => {
     try {
@@ -292,6 +297,39 @@ export default function App() {
       alert("Exporting PDF (placeholder).");
     } else {
       setShowPro(true);
+    }
+  };
+
+  const generateServerlessPlan = async () => {
+    setPlanError("");
+    setPlanLoading(true);
+    try {
+      const res = await fetch("/.netlify/functions/plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          duration,
+          startDate,
+          endDate,
+          tourType,
+          homeCountry,
+          budgetTier,
+          party,
+          mainCity: tourType === "national" ? mainCity : intlPick,
+          nearby: selectedSpots,
+          transport,
+          multiSpot,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.error || "Unable to draft itinerary");
+      setPlanResult(data);
+    } catch (error) {
+      setPlanError(error.message || "Unable to draft itinerary");
+      setPlanResult(null);
+    } finally {
+      setPlanLoading(false);
     }
   };
 
@@ -585,8 +623,36 @@ export default function App() {
                         nearby={selectedSpots}
                         transport={transport}
                       />
+
+                      {planResult && (
+                        <PlanSummaryCard plan={planResult} />
+                      )}
                     </div>
                     <div className="space-y-4">
+                      <Card>
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                              <Wand2 size={16} /> Serverless itinerary draft
+                            </div>
+                            <div className="text-xs text-gray-600">
+                              Calls Netlify Function with your picks to return a budgeted outline.
+                            </div>
+                          </div>
+                          <Button onClick={generateServerlessPlan} disabled={planLoading || !canNext()}>
+                            {planLoading ? <Loader2 className="mr-2 inline animate-spin" size={14} /> : <Wand2 className="mr-2 inline" size={14} />}
+                            {planLoading ? "Drafting" : "Generate"}
+                          </Button>
+                        </div>
+
+                        {planError && <div className="mt-3 rounded-lg bg-red-50 p-2 text-xs text-red-700">{planError}</div>}
+                        {!planResult && !planError && (
+                          <div className="mt-3 rounded-lg bg-gray-50 p-3 text-xs text-gray-600">
+                            Include duration, city and transport to get a structured plan.
+                          </div>
+                        )}
+                      </Card>
+
                       <Card>
                         <div className="text-sm text-gray-500">Next integrations</div>
                         <ul className="mt-2 list-disc space-y-2 pl-5 text-sm text-gray-700">
@@ -646,6 +712,80 @@ function NavBar({ backDisabled = false, onBack, onNext, canNext }) {
     <div className="mt-6 flex items-center justify-between">
       <Button variant="outline" onClick={onBack} disabled={backDisabled}>Back</Button>
       <Button onClick={onNext} disabled={!canNext}>Next <ChevronRight size={16} className="ml-1" /></Button>
+    </div>
+  );
+}
+
+function PlanSummaryCard({ plan }) {
+  return (
+    <Card className="border-purple-200 bg-purple-50">
+      <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-purple-900">
+        <Wand2 size={16} /> Draft from Netlify Function
+      </div>
+      <div className="text-sm text-gray-700">{plan.summary}</div>
+
+      <div className="mt-4 grid gap-3 sm:grid-cols-3">
+        <StatTile icon={Clock3} label="Duration" value={`${plan.days?.length || 1} days`} />
+        <StatTile icon={Users} label="Travellers" value={`~${plan.budget?.travellerCount || 2}`} />
+        <StatTile icon={BarChart3} label="Budget / day" value={`$${plan.budget?.perDay || 0}`} />
+      </div>
+
+      {plan.highlights?.length > 0 && (
+        <div className="mt-4">
+          <div className="text-xs font-semibold uppercase text-purple-800">Highlights</div>
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-gray-700">
+            {plan.highlights.map((h) => <li key={h}>{h}</li>)}
+          </ul>
+        </div>
+      )}
+
+      {plan.budget?.breakdown?.length > 0 && (
+        <div className="mt-4">
+          <div className="flex items-center justify-between text-sm font-semibold text-gray-900">
+            <div>Budget</div>
+            <div className="text-xs text-gray-600">Total ~${plan.budget.total}</div>
+          </div>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            {plan.budget.breakdown.map((b) => (
+              <div key={b.label} className="flex items-center justify-between rounded-xl bg-white px-3 py-2 text-sm text-gray-700">
+                <span>{b.label}</span>
+                <span className="font-semibold">${b.amount}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {plan.days?.length > 0 && (
+        <div className="mt-4 space-y-2">
+          <div className="text-xs font-semibold uppercase text-purple-800">Day by day</div>
+          {plan.days.slice(0, 4).map((d) => (
+            <div key={d.day} className="rounded-xl bg-white px-3 py-2 text-sm text-gray-700">
+              <div className="flex items-center justify-between">
+                <div className="font-semibold">Day {d.day}: {d.focus}</div>
+                <div className="text-[10px] uppercase text-gray-500">Serverless</div>
+              </div>
+              <div className="text-xs text-gray-600">{d.summary}</div>
+              {d.dinner && <div className="text-xs text-gray-500">{d.dinner}</div>}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {plan.transportTips && (
+        <div className="mt-4 rounded-xl bg-purple-100 px-3 py-2 text-xs text-purple-900">{plan.transportTips}</div>
+      )}
+    </Card>
+  );
+}
+
+function StatTile({ icon: Icon, label, value }) {
+  return (
+    <div className="rounded-xl bg-white p-3 text-sm text-gray-700 shadow-sm">
+      <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-gray-500">
+        <Icon size={14} /> {label}
+      </div>
+      <div className="text-base font-semibold text-gray-900">{value}</div>
     </div>
   );
 }
